@@ -1,21 +1,64 @@
 "use client"
 
 import type React from "react"
+import { useState, useRef, useEffect } from "react"
 
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { ChevronDown, ChevronUp, Save, Loader2, Maximize, Minimize, MessageCircle, Send } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
 import ExamplePrompts from "@/components/example-prompts"
 
+import FlappyBird from "@/components/flappy-bird"
+
 export default function Home() {
+  // ------------------------------
+  // High-level states
+  // ------------------------------
   const [prompt, setPrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [gameHtml, setGameHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [generationStep, setGenerationStep] = useState(0)
 
+  // Generated game name + expand/fullscreen toggles
+  const [gameName, setGameName] = useState("MyGame")
+  const [isGameExpanded, setIsGameExpanded] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+
+  // 2) Controls whether we show the FlappyBird mini‑game
+  const [showLoadingGame, setShowLoadingGame] = useState(false)
+
+  // Refs for the final game iframe
+  const gameIframeRef = useRef<HTMLIFrameElement>(null)
+  const gameContainerRef = useRef<HTMLDivElement>(null)
+
+  // ------------------------------
+  // Chat / modal states
+  // ------------------------------
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([
+    {role: "system", content: "Welcome! How would you like to modify your game?"}
+  ])
+  const [currentMessage, setCurrentMessage] = useState("")
+  const [isUpdatingGame, setIsUpdatingGame] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Scroll the chat to the bottom whenever messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages])
+
+  // ------------------------------
+  // Functions
+  // ------------------------------
+
+  // Submit prompt to generate final game
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!prompt.trim()) return
@@ -25,7 +68,10 @@ export default function Home() {
       setError(null)
       setGameHtml(null)
 
-      // Start the generation step animation
+      // Show the Flappy Bird mini‑game while generating
+      setShowLoadingGame(true)
+
+      // Simulate multi-step generation progress
       setGenerationStep(1)
       const stepInterval = setInterval(() => {
         setGenerationStep((prev) => {
@@ -37,13 +83,13 @@ export default function Home() {
         })
       }, 3000)
 
+      // -------------------------------------
+      // Example: call your /api/generate route
+      // -------------------------------------
       try {
-        // Call the API route directly from the client
         const response = await fetch("/api/generate", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt }),
         })
 
@@ -53,7 +99,6 @@ export default function Home() {
             const errorData = await response.json()
             errorMessage = errorData.error || errorMessage
           } catch (e) {
-            // If we can't parse the error as JSON, use the status text
             errorMessage = `Server error: ${response.statusText || response.status}`
           }
           throw new Error(errorMessage)
@@ -64,31 +109,94 @@ export default function Home() {
           throw new Error("No HTML content returned from the server")
         }
 
+        // If everything is good, set the game HTML
+        nameGame(prompt)
         setGameHtml(data.html)
+        setIsGameExpanded(true)
+
       } catch (err: any) {
         console.error("Error from API:", err)
         setError(err.message || "Failed to generate game. Please try again.")
       }
 
-      // Clear the interval if it's still running
+      // Done generating: hide Flappy Bird, finalize steps
       clearInterval(stepInterval)
-      setGenerationStep(9) // Ensure we show the final step
+      setGenerationStep(9)
+      setShowLoadingGame(false)
+      setIsGenerating(false)
     } catch (err: any) {
       console.error("Error in client code:", err)
       setError("An unexpected error occurred. Please try again.")
-    } finally {
       setIsGenerating(false)
+      setShowLoadingGame(false)
     }
   }
 
+  // Give the game a name based on the prompt
+  const nameGame = async (description: string) => {
+    try {
+      const response = await fetch("/api/name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: description }),
+      })
+      const data = await response.json()
+      setGameName(data.name)
+    } catch (err) {
+      // fallback
+      setGameName("MyGame")
+    }
+  }
+
+  // Called when user clicks an example prompt
   const handleSelectPrompt = (selectedPrompt: string) => {
     setPrompt(selectedPrompt)
   }
 
+  // Toggle fullscreen for the generated game
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen)
+  }
+
+  // Copy the generated game’s HTML to clipboard
+  const saveGame = () => {
+    if (gameHtml) {
+      navigator.clipboard.writeText(gameHtml)
+      alert("Game HTML copied to clipboard!")
+    }
+  }
+
+  // Chat logic: send user message, get system reply (stubbed)
+  const sendChatMessage = async () => {
+    if (!currentMessage.trim()) return
+
+    const userMessage = { role: "user", content: currentMessage }
+    setChatMessages((prev) => [...prev, userMessage])
+    setCurrentMessage("")
+
+    setIsUpdatingGame(true)
+
+    // Simulate a short delay
+    setTimeout(() => {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "system",
+          content: "I've updated your game with those changes! The modifications have been applied."
+        }
+      ])
+      setIsUpdatingGame(false)
+    }, 2000)
+  }
+
+  // ------------------------------
+  // Render
+  // ------------------------------
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-4xl font-bold text-center mb-8">MyGame</h1>
 
+      {/* 1) Prompt input & generation */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Create Your Game</CardTitle>
@@ -100,7 +208,7 @@ export default function Home() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Textarea
-                placeholder="Describe the game you want to play. For example: A 2D platformer game where you play as a ninja cat collecting sushi..."
+                placeholder="Describe the game you want..."
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 disabled={isGenerating}
@@ -108,6 +216,7 @@ export default function Home() {
               />
               <ExamplePrompts onSelectPrompt={handleSelectPrompt} />
             </div>
+
             <Button type="submit" disabled={isGenerating || !prompt.trim()} className="w-full">
               {isGenerating ? (
                 <>
@@ -118,6 +227,8 @@ export default function Home() {
                 "Generate Game"
               )}
             </Button>
+
+            {/* 2) Generation progress bar */}
             {isGenerating && (
               <div className="mt-4 space-y-2">
                 <div className="flex justify-between text-sm">
@@ -128,7 +239,7 @@ export default function Home() {
                   <div
                     className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
                     style={{ width: `${(generationStep / 9) * 99}%` }}
-                  ></div>
+                  />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {generationStep === 1 && "Processing your request..."}
@@ -140,12 +251,13 @@ export default function Home() {
                   {generationStep === 7 && "Ensuring feasibility..."}
                   {generationStep === 8 && "Selecting optimal design..."}
                   {generationStep === 9 && "Creating your game..."}
-                  {generationStep === 10 && "Applying finishing touches..."}
                 </p>
               </div>
             )}
           </form>
         </CardContent>
+
+        {/* 3) Error display */}
         {error && (
           <CardFooter className="bg-red-50 text-red-500 p-4 rounded-b-lg">
             <div className="flex flex-col space-y-1">
@@ -156,36 +268,153 @@ export default function Home() {
         )}
       </Card>
 
-      {gameHtml && (
-        <Card>
+      {/* 4) The separate FlappyBird mini‑game, shown while generating */}
+      {showLoadingGame && (
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Your Generated Game</CardTitle>
-            <CardDescription>Play the game below or copy the HTML to save it for later.</CardDescription>
+            <CardTitle>Play Flappy Bird while you wait!</CardTitle>
+            <CardDescription>
+              Press Space or Up arrow to flap. Avoid the pipes!
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-4">
-              <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(gameHtml)
-                  alert("Game HTML copied to clipboard!")
-                }}
-                variant="outline"
-              >
-                Copy Game HTML
-              </Button>
-            </div>
-            <div className="border rounded-lg overflow-hidden bg-white">
-              <iframe
-                srcDoc={gameHtml}
-                className="w-full h-[600px]"
-                title="Generated Game"
-                sandbox="allow-scripts allow-same-origin"
-              />
-            </div>
+            {/* This is the component you created in FlappyBird.tsx */}
+            <FlappyBird />
           </CardContent>
         </Card>
+      )}
+
+      {/* 5) The final generated game */}
+      {gameHtml && (
+        <div className={`transition-all duration-500 ease-in-out ${isFullScreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
+          <Card className={`${isFullScreen ? "h-full flex flex-col" : ""}`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle>{gameName}</CardTitle>
+                <CardDescription>Play the game below or save it for later.</CardDescription>
+              </div>
+              <div className="flex space-x-2">
+                {/* Expand/collapse the iframe */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsGameExpanded(!isGameExpanded)}
+                  aria-label={isGameExpanded ? "Collapse game" : "Expand game"}
+                >
+                  {isGameExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </Button>
+                {/* Fullscreen toggle */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleFullScreen}
+                  aria-label={isFullScreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {isFullScreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                </Button>
+                {/* Copy game HTML */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={saveGame}
+                  aria-label="Save game"
+                >
+                  <Save size={16} />
+                </Button>
+                {/* Open chat to modify the game */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsChatOpen(true)}
+                  aria-label="Chat to modify game"
+                >
+                  <MessageCircle size={16} />
+                </Button>
+              </div>
+            </CardHeader>
+            
+            <CardContent 
+              className={`transition-all duration-500 ease-in-out overflow-hidden ${isFullScreen ? "flex-grow" : ""} ${
+                isGameExpanded ? "max-h-[800px]" : "max-h-0 py-0"
+              }`}
+            >
+              <div 
+                ref={gameContainerRef}
+                className={`border rounded-lg overflow-hidden bg-white ${isFullScreen ? "h-full" : ""}`}
+              >
+                <iframe
+                  ref={gameIframeRef}
+                  srcDoc={gameHtml}
+                  className={`w-full transition-all duration-500 ${isFullScreen ? "h-full" : "h-[600px]"}`}
+                  title="Generated Game"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 6) Chat modal for modifying the generated game */}
+      <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modify Your Game</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col h-[400px]">
+            {/* Chat message list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 border rounded-lg mb-4">
+              {chatMessages.map((msg, index) => (
+                <div 
+                  key={index}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div 
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      msg.role === 'user' 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Chat input */}
+            <div className="flex space-x-2">
+              <Input
+                value={currentMessage}
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                placeholder="Describe changes to your game..."
+                onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                disabled={isUpdatingGame}
+                className="flex-1"
+              />
+              <Button 
+                onClick={sendChatMessage} 
+                disabled={!currentMessage.trim() || isUpdatingGame}
+                size="icon"
+              >
+                {isUpdatingGame ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 7) Floating chat button if game is generated but chat is closed */}
+      {gameHtml && !isChatOpen && !isFullScreen && (
+        <Button 
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg"
+          size="icon"
+        >
+          <MessageCircle size={24} />
+        </Button>
       )}
     </main>
   )
 }
-

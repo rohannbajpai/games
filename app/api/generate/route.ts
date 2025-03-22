@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import Anthropic from '@anthropic-ai/sdk';
 
+
 // Initialize the OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -35,7 +36,7 @@ async function queryAnthropic(
 
   const response = await anthropic.messages.create({
     model: "claude-3-7-sonnet-20250219",
-    max_tokens: 2048,
+    max_tokens: 16384,
     messages: [
       { role: "assistant", content: role },
       { role: "user", content: prompt }
@@ -77,6 +78,8 @@ export async function POST(req: Request) {
       "You are the sensory perception module, modeled after the primary sensory cortex. Your role is to receive the raw game design request and reframe it into a clear, structured game concept with core mechanics, theme, and user experience details.";
     const perceptionOutput = await queryOpenAI(perceptionRole, task, "gpt-4o");
 
+    console.log(perceptionOutput)
+
     // 2. Attention Agent (Parietal Cortex)
     const attentionRole =
       "You are the attention and relevance filter, akin to the parietal cortex. Analyze the structured game concept from the Perception Agent and extract the most critical elements—such as game mechanics, control schemes, themes, and visual style. Provide a concise, prioritized list.";
@@ -86,14 +89,18 @@ export async function POST(req: Request) {
       "gpt-4o"
     );
 
+    console.log(attentionOutput)
+
     // 3. Memory Agent (Hippocampus)
     const memoryRole =
-      "You are the memory recall system, comparable to the hippocampus. Retrieve all relevant background knowledge, design patterns, and successful game design examples related to the identified elements. Summarize this information to support the game concept.";
+      "You are the memory recall system, comparable to the hippocampus. Retrieve all relevant background knowledge, design patterns, tutorials, and successful ThreeJS game design examples related to the identified elements. Summarize this information to support the game concept.";
     const memoryOutput = await queryOpenAI(
       memoryRole,
       `Task: ${task}\nPerception Output: ${perceptionOutput}\nAttention Output: ${attentionOutput}`,
       "gpt-4o-search-preview"
     );
+
+    console.log(memoryOutput)
 
     // 4. Emotion Agent (Amygdala & Ventral Striatum)
     const emotionRole =
@@ -103,6 +110,7 @@ export async function POST(req: Request) {
       `Task: ${task}\nPerception Output: ${perceptionOutput}\nAttention Output: ${attentionOutput}\nMemory Output: ${memoryOutput}`,
       "gpt-4.5-preview"
     );
+    console.log(emotionOutput)
 
     // 5. Context Agent (Medial Prefrontal Cortex & Default Mode Network)
     const contextRole =
@@ -112,6 +120,7 @@ export async function POST(req: Request) {
       `Task: ${task}\nPerception Output: ${perceptionOutput}\nAttention Output: ${attentionOutput}\nMemory Output: ${memoryOutput}\nEmotion Output: ${emotionOutput}`,
       "gpt-4.5-preview"
     );
+    console.log(contextOutput)
 
     // 6. Planning Agent (Prefrontal Cortex)
     const planningRole =
@@ -121,6 +130,8 @@ export async function POST(req: Request) {
       `Task: ${task}\nPerception Output: ${perceptionOutput}\nAttention Output: ${attentionOutput}\nMemory Output: ${memoryOutput}\nEmotion Output: ${emotionOutput}\nContext Output: ${contextOutput}`,
       "o3-mini"
     );
+    console.log(planningOutput)
+    
 
     // 7. World Model Agent (Cerebellum)
     const worldModelRole =
@@ -130,6 +141,7 @@ export async function POST(req: Request) {
       `Task: ${task}\nPlanning Output: ${planningOutput}`,
       "o3-mini"
     );
+    console.log(worldModelOutput)
 
     // 8. Decision Agent (Orbitofrontal Cortex)
     const decisionRole =
@@ -139,6 +151,7 @@ export async function POST(req: Request) {
       `Task: ${task}\nPlanning Output: ${planningOutput}\nWorld Model Output: ${worldModelOutput}`,
       "o1"
     );
+    console.log(decisionOutput)
 
     // 9. Action Agent (Motor Cortex)
     const actionRole =
