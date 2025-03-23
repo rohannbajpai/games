@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChevronDown, ChevronUp, Save, Loader2, Maximize, Minimize, MessageCircle, Send } from "lucide-react"
+import { ChevronDown, ChevronUp, Save, Loader2, Maximize, Minimize, MessageCircle, Send, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -46,6 +46,19 @@ export default function Home() {
   const [currentMessage, setCurrentMessage] = useState("")
   const [isUpdatingGame, setIsUpdatingGame] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // ------------------------------
+  // Game history states
+  // ------------------------------
+  const [gameHistory, setGameHistory] = useState<{id: string, name: string, html: string, date: string}[]>([
+    { id: "1", name: "Space Invaders", html: "<html>...</html>", date: "2023-05-15" },
+    { id: "2", name: "Platformer Adventure", html: "<html>...</html>", date: "2023-05-20" },
+    { id: "3", name: "Puzzle Quest", html: "<html>...</html>", date: "2023-05-25" },
+    { id: "4", name: "Racing Simulator", html: "<html>...</html>", date: "2023-06-01" },
+    { id: "5", name: "RPG Journey", html: "<html>...</html>", date: "2023-06-10" }
+  ])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedHistoryGame, setSelectedHistoryGame] = useState<string | null>(null)
 
   // Scroll the chat to the bottom whenever messages change
   useEffect(() => {
@@ -114,6 +127,14 @@ export default function Home() {
         setGameHtml(data.html)
         setIsGameExpanded(true)
 
+        // Add the new game to history
+        const newGameId = (gameHistory.length + 1).toString()
+        const currentDate = new Date().toISOString().split('T')[0]
+        setGameHistory(prev => [
+          { id: newGameId, name: gameName, html: data.html, date: currentDate },
+          ...prev
+        ])
+
       } catch (err: any) {
         console.error("Error from API:", err)
         setError(err.message || "Failed to generate game. Please try again.")
@@ -158,7 +179,7 @@ export default function Home() {
     setIsFullScreen(!isFullScreen)
   }
 
-  // Copy the generated game’s HTML to clipboard
+  // Copy the generated game's HTML to clipboard
   const saveGame = () => {
     if (gameHtml) {
       navigator.clipboard.writeText(gameHtml)
@@ -189,171 +210,235 @@ export default function Home() {
     }, 2000)
   }
 
+  // Load a game from history
+  const loadHistoryGame = (id: string) => {
+    const game = gameHistory.find(g => g.id === id)
+    if (game) {
+      setGameHtml(game.html)
+      setGameName(game.name)
+      setIsGameExpanded(true)
+      setSelectedHistoryGame(id)
+    }
+  }
+
+  // Filter games based on search term
+  const filteredGames = gameHistory.filter(game => 
+    game.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   // ------------------------------
   // Render
   // ------------------------------
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <main className="container mx-auto px-4 py-8 max-w-6xl">
       <h1 className="text-4xl font-bold text-center mb-8">MyGame</h1>
 
-      {/* 1) Prompt input & generation */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Create Your Game</CardTitle>
-          <CardDescription>
-            Describe the game you want to play and our AI will generate it for you using a multi-agent system.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Textarea
-                placeholder="Describe the game you want..."
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={isGenerating}
-                className="w-full min-h-[150px]"
-              />
-              <ExamplePrompts onSelectPrompt={handleSelectPrompt} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-2">
+          {/* 4) The separate FlappyBird mini‑game, shown while generating */}
+          {showLoadingGame && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Play Flappy Bird while you wait!</CardTitle>
+                <CardDescription>
+                  Press Space or Up arrow to flap. Avoid the pipes!
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* This is the component you created in FlappyBird.tsx */}
+                <FlappyBird />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 5) The final generated game */}
+          {gameHtml && (
+            <div className={`transition-all duration-500 ease-in-out ${isFullScreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
+              <Card className={`${isFullScreen ? "h-full flex flex-col" : ""}`}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <div>
+                    <CardTitle>{gameName}</CardTitle>
+                    <CardDescription>Play the game below or save it for later.</CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    {/* Expand/collapse the iframe */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsGameExpanded(!isGameExpanded)}
+                      aria-label={isGameExpanded ? "Collapse game" : "Expand game"}
+                    >
+                      {isGameExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </Button>
+                    {/* Fullscreen toggle */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={toggleFullScreen}
+                      aria-label={isFullScreen ? "Exit fullscreen" : "Fullscreen"}
+                    >
+                      {isFullScreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                    </Button>
+                    {/* Copy game HTML */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={saveGame}
+                      aria-label="Save game"
+                    >
+                      <Save size={16} />
+                    </Button>
+                    {/* Open chat to modify the game */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsChatOpen(true)}
+                      aria-label="Chat to modify game"
+                    >
+                      <MessageCircle size={16} />
+                    </Button>
+                  </div>
+                </CardHeader>
+                
+                <CardContent 
+                  className={`transition-all duration-500 ease-in-out overflow-hidden ${isFullScreen ? "flex-grow" : ""} ${
+                    isGameExpanded ? "max-h-[800px]" : "max-h-0 py-0"
+                  }`}
+                >
+                  <div 
+                    ref={gameContainerRef}
+                    className={`border rounded-lg overflow-hidden bg-white ${isFullScreen ? "h-full" : ""}`}
+                  >
+                    <iframe
+                      ref={gameIframeRef}
+                      srcDoc={gameHtml}
+                      className={`w-full transition-all duration-500 ${isFullScreen ? "h-full" : "h-[600px]"}`}
+                      title="Generated Game"
+                      sandbox="allow-scripts allow-same-origin"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+          )}
 
-            <Button type="submit" disabled={isGenerating || !prompt.trim()} className="w-full">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating your game...
-                </>
-              ) : (
-                "Generate Game"
-              )}
-            </Button>
-
-            {/* 2) Generation progress bar */}
-            {isGenerating && (
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Generating your game...</span>
-                  <span>{Math.round((generationStep / 9) * 99)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                  <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${(generationStep / 9) * 99}%` }}
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {generationStep === 1 && "Processing your request..."}
-                  {generationStep === 2 && "Identifying key elements..."}
-                  {generationStep === 3 && "Retrieving relevant knowledge..."}
-                  {generationStep === 4 && "Evaluating player experience..."}
-                  {generationStep === 5 && "Synthesizing game narrative..."}
-                  {generationStep === 6 && "Generating game mechanics..."}
-                  {generationStep === 7 && "Ensuring feasibility..."}
-                  {generationStep === 8 && "Selecting optimal design..."}
-                  {generationStep === 9 && "Creating your game..."}
-                </p>
-              </div>
-            )}
-          </form>
-        </CardContent>
-
-        {/* 3) Error display */}
-        {error && (
-          <CardFooter className="bg-red-50 text-red-500 p-4 rounded-b-lg">
-            <div className="flex flex-col space-y-1">
-              <p className="font-semibold">Error:</p>
-              <p>{error}</p>
-            </div>
-          </CardFooter>
-        )}
-      </Card>
-
-      {/* 4) The separate FlappyBird mini‑game, shown while generating */}
-      {showLoadingGame && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Play Flappy Bird while you wait!</CardTitle>
-            <CardDescription>
-              Press Space or Up arrow to flap. Avoid the pipes!
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* This is the component you created in FlappyBird.tsx */}
-            <FlappyBird />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 5) The final generated game */}
-      {gameHtml && (
-        <div className={`transition-all duration-500 ease-in-out ${isFullScreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
-          <Card className={`${isFullScreen ? "h-full flex flex-col" : ""}`}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle>{gameName}</CardTitle>
-                <CardDescription>Play the game below or save it for later.</CardDescription>
-              </div>
-              <div className="flex space-x-2">
-                {/* Expand/collapse the iframe */}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsGameExpanded(!isGameExpanded)}
-                  aria-label={isGameExpanded ? "Collapse game" : "Expand game"}
-                >
-                  {isGameExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </Button>
-                {/* Fullscreen toggle */}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleFullScreen}
-                  aria-label={isFullScreen ? "Exit fullscreen" : "Fullscreen"}
-                >
-                  {isFullScreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                </Button>
-                {/* Copy game HTML */}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={saveGame}
-                  aria-label="Save game"
-                >
-                  <Save size={16} />
-                </Button>
-                {/* Open chat to modify the game */}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsChatOpen(true)}
-                  aria-label="Chat to modify game"
-                >
-                  <MessageCircle size={16} />
-                </Button>
-              </div>
+          {/* 1) Prompt input & generation */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Create Your Game</CardTitle>
+              <CardDescription>
+                Describe the game you want to play to start generating.
+              </CardDescription>
             </CardHeader>
-            
-            <CardContent 
-              className={`transition-all duration-500 ease-in-out overflow-hidden ${isFullScreen ? "flex-grow" : ""} ${
-                isGameExpanded ? "max-h-[800px]" : "max-h-0 py-0"
-              }`}
-            >
-              <div 
-                ref={gameContainerRef}
-                className={`border rounded-lg overflow-hidden bg-white ${isFullScreen ? "h-full" : ""}`}
-              >
-                <iframe
-                  ref={gameIframeRef}
-                  srcDoc={gameHtml}
-                  className={`w-full transition-all duration-500 ${isFullScreen ? "h-full" : "h-[600px]"}`}
-                  title="Generated Game"
-                  sandbox="allow-scripts allow-same-origin"
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Textarea
+                    placeholder="Describe the game you want..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    disabled={isGenerating}
+                    className="w-full min-h-[150px]"
+                  />
+                  <ExamplePrompts onSelectPrompt={handleSelectPrompt} />
+                </div>
+
+                <Button type="submit" disabled={isGenerating || !prompt.trim()} className="w-full">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating your game...
+                    </>
+                  ) : (
+                    "Generate Game"
+                  )}
+                </Button>
+
+                {/* 2) Generation progress bar */}
+                {isGenerating && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Generating your game...</span>
+                      <span>{Math.round((generationStep / 9) * 99)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                      <div
+                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+                        style={{ width: `${(generationStep / 9) * 99}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {generationStep === 1 && "Processing your request..."}
+                      {generationStep === 2 && "Identifying key elements..."}
+                      {generationStep === 3 && "Retrieving relevant knowledge..."}
+                      {generationStep === 4 && "Evaluating player experience..."}
+                      {generationStep === 5 && "Synthesizing game narrative..."}
+                      {generationStep === 6 && "Generating game mechanics..."}
+                      {generationStep === 7 && "Ensuring feasibility..."}
+                      {generationStep === 8 && "Selecting optimal design..."}
+                      {generationStep === 9 && "Creating your game..."}
+                    </p>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+
+            {/* 3) Error display */}
+            {error && (
+              <CardFooter className="bg-red-50 text-red-500 p-4 rounded-b-lg">
+                <div className="flex flex-col space-y-1">
+                  <p className="font-semibold">Error:</p>
+                  <p>{error}</p>
+                </div>
+              </CardFooter>
+            )}
+          </Card>
+        </div>
+
+        {/* Game History Section */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Game Library</CardTitle>
+              <CardDescription>
+                Browse and replay your previously created games
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search games..."
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
+              </div>
+              
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                {filteredGames.length > 0 ? (
+                  filteredGames.map((game) => (
+                    <div 
+                      key={game.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-gray-100 ${
+                        selectedHistoryGame === game.id ? 'bg-blue-50 border-blue-200' : ''
+                      }`}
+                      onClick={() => loadHistoryGame(game.id)}
+                    >
+                      <div className="font-medium">{game.name}</div>
+                      <div className="text-sm text-gray-500">Created: {game.date}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No games found matching your search
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
-      )}
+      </div>
 
       {/* 6) Chat modal for modifying the generated game */}
       <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>

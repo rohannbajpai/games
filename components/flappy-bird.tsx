@@ -1,12 +1,14 @@
+"use client"
+
 import React, { useState, useEffect, useRef } from "react"
 
 /**
- * A React component that implements the “Flappy Bird: 3D Edition”
+ * A React component that implements the "Flappy Bird: 3D Edition"
  * logic from your HTML/JS example, using a <canvas> for rendering.
  */
-export default function FlappyBird3D() {
+export default function FlappyBird() {
   // -------------------------------------------------------
-  // References and State
+  // REFERENCES AND STATE
   // -------------------------------------------------------
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -44,7 +46,7 @@ export default function FlappyBird3D() {
   const [highScore, setHighScore] = useState(0)
 
   // -------------------------------------------------------
-  // Lifecycle Effects
+  // LIFECYCLE EFFECTS
   // -------------------------------------------------------
 
   // 1) Main game loop using requestAnimationFrame
@@ -62,8 +64,7 @@ export default function FlappyBird3D() {
 
     // Cleanup
     return () => cancelAnimationFrame(animationId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [gameStarted, gameOver, bird, pipes, clouds, score, highScore])
 
   // 2) Keydown listener for arrow up / space
   useEffect(() => {
@@ -84,12 +85,24 @@ export default function FlappyBird3D() {
   }, [gameStarted, gameOver])
 
   // -------------------------------------------------------
-  // Game Logic
+  // GAME LOGIC
   // -------------------------------------------------------
 
   function startGame() {
     if (!gameStarted) {
       setGameStarted(true)
+      // Reset game state to ensure a clean start
+      setBird((b) => ({
+        ...b,
+        x: 50,
+        y: 200,
+        velocity: 0,
+        rotation: 0,
+      }))
+      setPipes([])
+      setClouds([createCloud(), createCloud(), createCloud()])
+      setScore(0)
+      setGameOver(false)
     }
   }
 
@@ -133,7 +146,7 @@ export default function FlappyBird3D() {
   }
 
   function updateGame() {
-    // If the game isn’t started or is over, no movement
+    // If the game isn't started or is over, no movement
     if (!gameStarted || gameOver) return
 
     setBird((prevBird) => {
@@ -162,9 +175,10 @@ export default function FlappyBird3D() {
     // Update pipes
     setPipes((oldPipes) => {
       let newPipes = oldPipes.map((pipe) => ({ ...pipe, x: pipe.x - 2 }))
+      
+      // Check collision with each pipe
+      const b = bird
       newPipes.forEach((pipe) => {
-        // Check collision
-        const b = bird
         if (b.x + b.width > pipe.x && b.x < pipe.x + pipeWidth) {
           if (b.y < pipe.top || b.y + b.height > pipe.bottom) {
             setGameOver(true)
@@ -177,6 +191,7 @@ export default function FlappyBird3D() {
           setScore((s) => s + 1)
         }
       })
+      
       // Filter out off-screen pipes
       newPipes = newPipes.filter((pipe) => pipe.x + pipeWidth > 0)
 
@@ -263,7 +278,7 @@ export default function FlappyBird3D() {
   }
 
   // -------------------------------------------------------
-  // Drawing Helpers
+  // DRAWING HELPERS
   // -------------------------------------------------------
   function getCanvasWidth() {
     return canvasRef.current?.width || 400
@@ -391,12 +406,11 @@ export default function FlappyBird3D() {
   }
 
   // -------------------------------------------------------
-  // Canvas sizing + event handlers
+  // CANVAS SIZING + EVENT HANDLERS
   // -------------------------------------------------------
 
   // Make the canvas responsive by matching its display size
   // to its container's clientWidth. We keep a 1:1 aspect ratio.
-  // Adjust if you want a different ratio.
   useEffect(() => {
     function handleResize() {
       const canvas = canvasRef.current
@@ -404,7 +418,7 @@ export default function FlappyBird3D() {
       const parent = canvas.parentElement
       if (!parent) return
 
-      // We'll make the canvas the smaller of (parent's width, parent’s height)
+      // We'll make the canvas the smaller of (parent's width, parent's height)
       // or fallback to 400 if not found
       const size = Math.min(parent.clientWidth, 400)
       canvas.width = size
@@ -417,8 +431,10 @@ export default function FlappyBird3D() {
 
   // Click on canvas to jump or start/restart
   function handleCanvasClick() {
+    console.log("click")
     if (!gameStarted) {
-      setGameStarted(true)
+      console.log("starting game")
+      startGame()
     } else if (gameOver) {
       resetGame()
     } else {
@@ -427,12 +443,11 @@ export default function FlappyBird3D() {
   }
 
   // -------------------------------------------------------
-  // Render
+  // RENDER
   // -------------------------------------------------------
   return (
     <div style={styles.pageContainer}>
       <div style={styles.gameContainer}>
-        <h1 style={styles.title}>Flappy Bird: 3D Edition</h1>
         <canvas
           ref={canvasRef}
           style={styles.canvas}
@@ -471,7 +486,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    minHeight: "100vh",
+    minHeight: "800px"
   },
   gameContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.8)",
@@ -526,4 +541,3 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 16,
   },
 }
-

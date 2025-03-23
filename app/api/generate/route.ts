@@ -135,7 +135,7 @@ export async function POST(req: Request) {
 
     // 7. World Model Agent (Cerebellum)
     const worldModelRole =
-      "You are the world model evaluator, analogous to the cerebellum, which integrates sensorimotor feedback. Assess the real-world feasibility of the proposed game design by considering practical constraints, platform limitations, and UI requirements. Provide a comprehensive evaluation.";
+      "You are the world model evaluator, analogous to the cerebellum, which integrates sensorimotor feedback. Assess the real-world feasibility of the proposed game designs by considering practical constraints, platform limitations, and UI requirements. Provide a comprehensive evaluation.";
     const worldModelOutput = await queryOpenAI(
       worldModelRole,
       `Task: ${task}\nPlanning Output: ${planningOutput}`,
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     const decisionOutput = await queryOpenAI(
       decisionRole,
       `Task: ${task}\nPlanning Output: ${planningOutput}\nWorld Model Output: ${worldModelOutput}`,
-      "o1"
+      "o3-mini"
     );
     console.log(decisionOutput)
 
